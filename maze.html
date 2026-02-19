@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Maze Project Final</title>
+
+<!-- PWA манифест -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
+
+<style>
+body{
+  margin:0;
+  background:#111;
+  overflow:hidden;
+  font-family:Arial;
+  color:white;
+}
+
+canvas{ display:block; background:#000; }
+
+#ui{
+  position:fixed;
+  top:10px;
+  right:10px;
+  z-index:10;
+}
+
+#minimapContainer{
+  position:fixed;
+  top:10px;
+  left:10px;
+  z-index:20;
+}
+
+#minimap{
+  width:160px;
+  height:160px;
+  border:2px solid white;
+  background:#000;
+  display:block;
+}
+
+#minimapToggle{
+  width:40px;
+  height:40px;
+  background:#333;
+  border:2px solid white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  font-size:18px;
+}
+
+#difficulty{
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  background:#222;
+  padding:20px;
+  border:2px solid white;
+  text-align:center;
+  z-index:50;
+}
+
+.diffBtn{
+  margin:10px;
+  padding:10px 20px;
+  background:#333;
+  border:1px solid white;
+  color:white;
+}
+
+#controls{
+  position:fixed;
+  bottom:30px;
+  left:50%;
+  transform:translateX(-50%);
+  width:220px;
+  height:220px;
+  z-index:20;
+}
+
+.btn{
+  position:absolute;
+  width:70px;
+  height:70px;
+  background:#333;
+  border:2px solid white;
+  border-radius:15px;
+  color:white;
+  font-size:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+#up{ top:0; left:75px; }
+#down{ bottom:0; left:75px; }
+#left{ left:0; top:75px; }
+#right{ right:0; top:75px; }
+
+.btn:active{ background:#666; }
+</style>
+</head>
+<body>
+
+<!-- Выбор сложности -->
+<div id="difficulty">
+  <h3>Выбери сложность</h3>
+  <button class="diffBtn" onclick="startGame(41)">Лёгкий</button>
+  <button class="diffBtn" onclick="startGame(61)">Средний</button>
+  <button class="diffBtn" onclick="startGame(91)">Сложный</button>
+</div>
+
+<!-- UI -->
+<div id="ui">
+  <div>Время: <span id="time">0</span> сек</div>
+</div>
+
+<!-- Мини-карта с кнопкой сворачивания -->
+<div id="minimapContainer">
+  <canvas id="minimap"></canvas>
+  <div id="minimapToggle">🗺</div>
+</div>
+
+<!-- Основной canvas -->
+<canvas id="game"></canvas>
+
+<!-- Кнопки управления -->
+<div id="controls">
+  <div class="btn" id="up">▲</div>
+  <div class="btn" id="down">▼</div>
+  <div class="btn" id="left">◀</div>
+  <div class="btn" id="right">▶</div>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+
+const minimap=document.getElementById("minimap");
+const mctx=minimap.getContext("2d");
+
+const tileSize=30;
+
+let mapSize;
+let maze=[];
+let player;
+let goal;
+let startTime;
+let gameStarted=false;
+let minimapVisible=true;
+
+// Запуск игры
+function startGame(size){
+  mapSize=size;
+  document.getElementById("difficulty").style.display="none";
+  player={x:1,y:1};
+  goal={x:mapSize-2,y:mapSize-2};
+  generateMaze(mapSize);
+  startTime=Date.now();
+  gameStarted=true;
+}
+
+// Генерация рандомного лабиринта
+function generateMaze(size){
+  maze=Array(size).fill().map(()=>Array(size).fill(1));
+
+  function carve(x,y){
+    const dirs=[[0,-2],[2,0],[0,2],[-2,0]].sort(()=>Math.random()-0.5);
+    for(let [dx,dy] of dirs){
+      let nx=x+dx, ny=y+dy;
+      if(nx>0 && ny>0 && nx<size-1 && ny<size-1 && maze[ny][nx]===1){
+        maze[ny][nx]=0;
+        maze[y+dy/2][x+dx/2]=0;
+        carve(nx,ny);
+      }
+    }
+  }
+
+  maze[1][1]=0;
+  carve(1,1);
+}
+
+// Движение игрока
+function move(dx,dy){
+  if(!gameStarted) return;
+
+  let nx=player.x+dx;
+  let ny=player.y+dy;
+
+  if(nx>=0 && ny>=0 && nx<mapSize && ny<mapSize){
+    if(maze[ny][nx]===0){
+      player.x=nx;
+      player.y=ny;
+    }
+  }
+
+  if(player.x===goal.x && player.y===goal.y){
+    startGame(mapSize); // новый уровень
+  }
+}
+
+// Рисуем игровой экран
+function draw(){
+  if(!gameStarted) return;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  let camX=player.x*tileSize-canvas.width/2;
+  let camY=player.y*tileSize-canvas.height/2;
+
+  for(let y=0;y<mapSize;y++){
+    for(let x=0;x<mapSize;x++){
+      ctx.fillStyle=maze[y][x]===1?"#222":"#111";
+      ctx.fillRect(
+        x*tileSize-camX,
+        y*tileSize-camY,
+        tileSize,
+        tileSize
+      );
+    }
+  }
+
+  // Цель
+  ctx.fillStyle="green";
+  ctx.fillRect(goal.x*tileSize-camX,goal.y*tileSize-camY,tileSize,tileSize);
+
+  // Игрок
+  ctx.fillStyle="red";
+  ctx.fillRect(player.x*tileSize-camX,player.y*tileSize-camY,tileSize,tileSize);
+
+  if(minimapVisible) drawMinimap();
+}
+
+// Рисуем мини-карту с игроком в центре
+function drawMinimap(){
+  const viewRadius=8;
+  const cells=viewRadius*2+1;
+
+  const cellSize=Math.floor(minimap.width/cells);
+  const offsetX=Math.floor((minimap.width-cellSize*cells)/2);
+  const offsetY=Math.floor((minimap.height-cellSize*cells)/2);
+
+  mctx.clearRect(0,0,minimap.width,minimap.height);
+
+  for(let y=-viewRadius;y<=viewRadius;y++){
+    for(let x=-viewRadius;x<=viewRadius;x++){
+      const mapX=player.x+x;
+      const mapY=player.y+y;
+
+      let color="#000";
+
+      if(mapX>=0 && mapY>=0 && mapX<mapSize && mapY<mapSize){
+        color=maze[mapY][mapX]===1?"#555":"#111";
+      }
+
+      mctx.fillStyle=color;
+      mctx.fillRect(
+        offsetX+(x+viewRadius)*cellSize,
+        offsetY+(y+viewRadius)*cellSize,
+        cellSize,
+        cellSize
+      );
+    }
+  }
+
+  // Цель в радиусе
+  if(Math.abs(goal.x-player.x)<=viewRadius &&
+     Math.abs(goal.y-player.y)<=viewRadius){
+    mctx.fillStyle="green";
+    mctx.fillRect(
+      offsetX+(goal.x-player.x+viewRadius)*cellSize,
+      offsetY+(goal.y-player.y+viewRadius)*cellSize,
+      cellSize,
+      cellSize
+    );
+  }
+
+  // Игрок в центре
+  mctx.fillStyle="red";
+  mctx.fillRect(
+    offsetX+viewRadius*cellSize,
+    offsetY+viewRadius*cellSize,
+    cellSize,
+    cellSize
+  );
+}
+
+// Игровой цикл
+function loop(){
+  if(gameStarted){
+    let seconds=Math.floor((Date.now()-startTime)/1000);
+    document.getElementById("time").innerText=seconds;
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* Кнопки управления */
+document.getElementById("up").ontouchstart=()=>move(0,-1);
+document.getElementById("down").ontouchstart=()=>move(0,1);
+document.getElementById("left").ontouchstart=()=>move(-1,0);
+document.getElementById("right").ontouchstart=()=>move(1,0);
+
+/* Скрытие/отображение мини-карты */
+const toggle=document.getElementById("minimapToggle");
+toggle.onclick=()=>{
+  minimapVisible=!minimapVisible;
+  minimap.style.display=minimapVisible?"block":"none";
+};
+
+/* PWA Service Worker */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>
